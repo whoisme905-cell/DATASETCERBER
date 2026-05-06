@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CERBER OS | DATASET CERBER</title>
+    <style>
+        :root {
+            --bg: #060606;
+            --panel: #0c0c0c;
+            --border: #1f1f1f;
+            --text: #999;
+            --text-bright: #ccc;
+            --green: #33ff33;
+            --red: #cc0000;
+            --amber: #cc9900;
+            --gold: #c9a84c;
+            --font: 'JetBrains Mono', 'Courier New', monospace;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: #000;
+            color: var(--text);
+            font-family: var(--font);
+            height: 100vh;
+            overflow: hidden;
+            font-size: 12px;
+            letter-spacing: 0.4px;
+            user-select: none;
+        }
+        body.admin-theme { --gold: #c9a84c; }
+
+        #login-screen {
+            position: fixed; inset: 0; background: #020202; z-index: 3000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 35px;
+            transition: opacity 0.4s, visibility 0.4s;
+        }
+        #login-screen.hidden { opacity:0; visibility:hidden; pointer-events:none; display:none; }
+        #login-screen .logo-container { text-align:center; }
+        #login-screen .logo-container img {
+            width: 90px; height: 90px; border-radius: 50%; border: 1px solid #2a2a2a;
+            padding: 10px; background: #0a0a0a; filter: grayscale(100%) contrast(1.3); margin-bottom: 16px;
+        }
+        #login-screen .logo-container h1 { font-weight:400; font-size:18px; letter-spacing:10px; color:#ddd; text-transform:uppercase; margin-bottom:4px; }
+        #login-screen .logo-container p { font-size:9px; letter-spacing:4px; color:#555; text-transform:uppercase; }
+        #login-screen .input-group { display:flex; flex-direction:column; gap:10px; width:320px; }
+        #login-screen .input-field { position:relative; }
+        #login-screen .input-field input {
+            background:#0a0a0a; border:1px solid #222; color:#ccc; padding:15px 15px 7px 15px;
+            font-family:var(--font); font-size:13px; letter-spacing:1px; outline:none; width:100%; transition:0.3s;
+        }
+        #login-screen .input-field input:focus { border-color:#555; }
+        #login-screen .input-field label {
+            position:absolute; left:15px; top:50%; transform:translateY(-50%);
+            font-size:10px; letter-spacing:2px; color:#444; pointer-events:none; transition:0.2s; text-transform:uppercase;
+        }
+        #login-screen .input-field input:focus+label,
+        #login-screen .input-field input:not(:placeholder-shown)+label { top:20%; font-size:7px; color:#666; }
+        #login-screen button {
+            background:transparent; color:#aaa; border:1px solid #333; padding:13px;
+            font-family:var(--font); font-size:11px; letter-spacing:4px; cursor:pointer; transition:0.3s; text-transform:uppercase; margin-top:5px;
+        }
+        #login-screen button:hover { background:#111; color:#fff; border-color:#555; }
+        #login-screen .error-msg { color:var(--red); font-size:10px; letter-spacing:1px; min-height:14px; text-align:center; }
+        #login-screen .status-line { color:#333; font-size:9px; letter-spacing:2px; display:flex; align-items:center; gap:6px; }
+        #login-screen .status-line .dot { width:4px; height:4px; background:#444; border-radius:50%; animation:pulse-dot 3s infinite; }
+        @keyframes pulse-dot { 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+
+        #transition-overlay {
+            position:fixed; inset:0; background:#000; z-index:2999; opacity:0; visibility:hidden; pointer-events:none;
+            transition:opacity 0.2s; display:flex; flex-direction:column; justify-content:center; align-items:center;
+        }
+        #transition-overlay.active { opacity:1; visibility:visible; }
+        #transition-overlay .scan-line { position:absolute; top:50%; width:100%; height:1px; background:rgba(255,255,255,0.4); transform:scaleX(0); transition:transform 0.5s; }
+        #transition-overlay.active .scan-line { transform:scaleX(1); }
+        #transition-overlay .loading-text { color:#444; font-size:10px; letter-spacing:5px; opacity:0; transition:opacity 0.3s 0.2s; text-transform:uppercase; margin-top:20px; }
+        #transition-overlay.active .loading-text { opacity:1; }
+
+        #main-os { display:none; width:100vw; height:100vh; grid-template-rows:50px 1fr 22px; grid-template-columns:230px 1fr; background:#080808; opacity:0; transition:opacity 0.6s; }
+        #main-os.visible { opacity:1; display:grid; }
+
+        .header { grid-column:1/-1; background:#040404; display:flex; align-items:center; padding:0 18px; gap:10px; border-bottom:1px solid #1a1a1a; z-index:20; }
+        .header img { width:26px; height:26px; border-radius:50%; border:1px solid #333; filter:grayscale(100%); opacity:0.8; }
+        .header .sys-name { font-size:14px; letter-spacing:5px; color:#ccc; text-transform:uppercase; }
+        .header .sys-sub { font-size:8px; letter-spacing:2px; color:#444; margin-left:auto; text-transform:uppercase; }
+        .header .admin-badge { color:var(--gold); font-size:7px; letter-spacing:2px; border:1px solid var(--gold); padding:2px 7px; display:none; }
+        .header .search-wrap { position:relative; }
+        .header .search-wrap input { background:#0a0a0a; border:1px solid #1f1f1f; color:#999; padding:5px 10px; font-family:var(--font); font-size:9px; letter-spacing:1px; outline:none; width:160px; transition:0.3s; }
+        .header .search-wrap input:focus { border-color:#444; width:220px; }
+        .search-results { position:absolute; top:100%; right:0; width:320px; max-height:200px; overflow-y:auto; background:#0a0a0a; border:1px solid #1f1f1f; display:none; z-index:30; }
+        .search-results.show { display:block; }
+        .search-results .sr-item { padding:7px 10px; font-size:9px; color:#777; cursor:pointer; border-bottom:1px solid #111; }
+        .search-results .sr-item:hover { background:#111; color:#bbb; }
+        .header .logout-btn { background:none; border:1px solid #2a2a2a; color:#666; padding:5px 12px; font-family:var(--font); font-size:8px; letter-spacing:2px; transition:0.3s; text-transform:uppercase; }
+        .header .logout-btn:hover { border-color:var(--red); color:var(--red); }
+
+        .sidebar { background:#040404; padding:8px 0; display:flex; flex-direction:column; gap:1px; border-right:1px solid #151515; overflow-y:auto; grid-row:2; }
+        .sidebar .sidebar-section { font-size:7px; letter-spacing:3px; color:#333; padding:5px 18px; text-transform:uppercase; }
+        .sidebar .sidebar-divider { border-top:1px solid #141414; margin:4px 14px; }
+        .sidebar .nav-btn { background:none; border:none; color:#555; padding:9px 18px; text-align:left; cursor:pointer; font-family:var(--font); font-size:10px; letter-spacing:1.5px; transition:0.2s; position:relative; text-transform:uppercase; }
+        .sidebar .nav-btn .nav-key { font-size:7px; color:#333; margin-right:6px; }
+        .sidebar .nav-btn:hover { color:#999; background:#0a0a0a; }
+        .sidebar .nav-btn.active { color:#ddd; background:#0d0d0d; }
+        .sidebar .nav-btn.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:#555; }
+        .sidebar .nav-btn.admin-nav { color:#6a5030; display:none; }
+        .sidebar .nav-btn.admin-nav:hover { color:var(--gold); background:#0d0a04; }
+        .sidebar .nav-btn.leader-locked { color:#2a2a2a; cursor:pointer; }
+        .sidebar .nav-lock-icon { margin-left:auto; font-size:8px; color:#3a2020; }
+
+        .main-content { background:#0a0a0a; padding:22px; overflow-y:auto; grid-row:2; }
+        .main-content::-webkit-scrollbar { width:3px; }
+        .main-content::-webkit-scrollbar-track { background:#000; }
+        .main-content::-webkit-scrollbar-thumb { background:#1a1a1a; }
+        .tab-panel { display:none; animation:fadeTab 0.25s; }
+        .tab-panel.active { display:block; }
+        @keyframes fadeTab { from{opacity:0;transform:translateY(3px);} to{opacity:1;transform:translateY(0);} }
+
+        .dash-hero { display:flex; align-items:center; gap:18px; margin-bottom:18px; padding:16px 20px; background:#0b0b0b; border:1px solid #1a1a1a; }
+        .dash-hero img { width:42px; height:42px; border-radius:50%; border:1px solid #333; filter:grayscale(100%); opacity:0.8; flex-shrink:0; }
+        .dash-hero-text h2 { font-size:16px; letter-spacing:6px; color:#ccc; font-weight:400; text-transform:uppercase; }
+        .dash-hero-text .dh-version { font-size:8px; color:#555; letter-spacing:2px; margin-top:2px; }
+        .dash-hero-text .dh-desc { font-size:8px; color:#444; letter-spacing:1.5px; margin-top:2px; }
+        .dash-status-line { display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:9px; color:#666; letter-spacing:2px; }
+        .dash-status-line .pulse { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 12px rgba(51,255,51,0.6); animation:dashPulse 1.5s infinite; }
+        @keyframes dashPulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.6;transform:scale(1.3);} }
+        .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+        .dash-card { background:#0b0b0b; border:1px solid #161616; padding:16px; transition:0.3s; cursor:pointer; }
+        .dash-card:hover { border-color:#2a2a2a; background:#0e0e0e; }
+        .dash-card .dc-num { font-size:32px; color:#ccc; letter-spacing:3px; font-weight:300; }
+        .dash-card .dc-lbl { font-size:8px; letter-spacing:2px; color:#555; text-transform:uppercase; margin-top:4px; }
+        .dash-mini-map { background:#060606; border:1px solid #1a1a1a; height:180px; position:relative; margin-bottom:16px; overflow:hidden; }
+        .dash-mini-map .mm-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px); background-size:50px 50px; }
+        .mm-dot { position:absolute; width:8px; height:8px; border-radius:50%; transform:translate(-50%,-50%); cursor:pointer; transition:0.3s; }
+        .mm-dot.warehouse { background:#2a2a2a; border:1px solid #444; }
+        .mm-dot.hq { background:var(--gold); border:1px solid #6a5030; width:10px; height:10px; animation:mmPulse 2s infinite; }
+        @keyframes mmPulse { 0%,100%{box-shadow:0 0 4px rgba(201,168,76,0.3);} 50%{box-shadow:0 0 12px rgba(201,168,76,0.6);} }
+        .mm-dot.partner { background:#1a3a1a; border:1px solid #3a6a3a; }
+        .mm-dot.rival { background:#3a1010; border:1px solid #6a3030; }
+        .mm-cursor-tip { position:absolute; background:#0a0a0a; border:1px solid #444; padding:6px 10px; font-size:8px; color:#bbb; pointer-events:none; display:none; z-index:20; white-space:nowrap; letter-spacing:1px; }
+
+        .warehouse-gallery { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+        .wh-gallery-item { background:#0b0b0b; border:1px solid #161616; overflow:hidden; cursor:pointer; transition:0.3s; position:relative; aspect-ratio:3/2; }
+        .wh-gallery-item:hover { border-color:#333; }
+        .wh-gallery-item img { width:100%; height:100%; object-fit:cover; filter:grayscale(100%) contrast(1.2); opacity:0.6; transition:0.3s; }
+        .wh-gallery-item:hover img { opacity:0.9; filter:grayscale(70%) contrast(1.2); }
+        .wh-gallery-item .wh-label { position:absolute; bottom:0; left:0; right:0; padding:6px 8px; background:rgba(0,0,0,0.85); font-size:7px; color:#999; letter-spacing:1px; text-align:center; }
+
+        .dash-activity { display:flex; flex-direction:column; gap:4px; max-height:120px; overflow-y:auto; }
+        .dash-activity .da-item { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #0f0f0f; font-size:8px; color:#777; }
+        .dash-activity .da-time { color:#444; font-size:7px; min-width:40px; }
+
+        .timeline { display:flex; flex-direction:column; gap:2px; position:relative; padding-left:20px; }
+        .timeline::before { content:''; position:absolute; left:8px; top:0; bottom:0; width:1px; background:#1a1a1a; }
+        .tl-item { display:flex; gap:10px; padding:8px 0; position:relative; }
+        .tl-item::before { content:''; position:absolute; left:-16px; top:12px; width:8px; height:8px; border-radius:50%; background:#333; border:1px solid #444; }
+        .tl-item.upcoming::before { background:var(--amber); border-color:#665020; }
+        .tl-item.past::before { background:#1a3a1a; border-color:#2a5a2a; }
+        .tl-date { font-size:8px; color:#555; min-width:70px; letter-spacing:1px; }
+        .tl-text { font-size:9px; color:#888; }
+        .tl-tag { font-size:7px; padding:1px 6px; border:1px solid #2a2a2a; color:#666; letter-spacing:1px; display:inline-block; margin-left:4px; }
+
+        .card { background:#0b0b0b; border:1px solid #161616; padding:18px; margin-bottom:10px; transition:0.25s; }
+        .card:hover { border-color:#222; }
+        .card h3 { color:#ccc; font-size:11px; letter-spacing:2px; margin-bottom:10px; text-transform:uppercase; font-weight:400; border-bottom:1px solid #151515; padding-bottom:8px; }
+        .card p { color:#888; line-height:1.7; font-size:10px; margin-bottom:2px; }
+        .card .lbl { color:#555; letter-spacing:1px; font-size:9px; text-transform:uppercase; }
+        .card .val { color:#bbb; }
+
+        table { width:100%; border-collapse:collapse; font-size:9px; }
+        table th { background:#0c0c0c; color:#666; padding:8px 12px; text-align:left; letter-spacing:1.5px; font-weight:400; border-bottom:1px solid #1a1a1a; font-size:8px; text-transform:uppercase; }
+        table td { padding:7px 12px; border-bottom:1px solid #111; color:#999; cursor:pointer; }
+        table tr:hover td { background:#0d0d0d; }
+
+        .status-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; }
+        .s-active { background:var(--green); box-shadow:0 0 4px rgba(51,255,51,0.3); }
+        .s-warn { background:var(--amber); box-shadow:0 0 4px rgba(204,153,0,0.3); }
+        .s-off { background:var(--red); }
+
+        .status-bar { grid-column:1/-1; background:#020202; border-top:1px solid #151515; display:flex; align-items:center; padding:0 10px; font-size:7px; letter-spacing:1.5px; color:#333; gap:12px; text-transform:uppercase; }
+        .status-bar .live-dot { width:4px; height:4px; background:var(--green); border-radius:50%; animation:pulse 2.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:0.3;} 50%{opacity:1;} }
+
+        /* Остальные стили (полные) */
+        .dossier-btn { background:#0d0d0d; border:1px solid #1f1f1f; color:#bbb; padding:10px 16px; cursor:pointer; font-family:var(--font); font-size:9px; letter-spacing:2px; text-transform:uppercase; transition:0.3s; margin-right:6px; margin-bottom:6px; }
+        .dossier-btn:hover { background:#1a1a1a; border-color:#333; }
+        .client-card { background:#0b0b0b; border:1px solid #161616; padding:14px; margin-bottom:6px; cursor:pointer; transition:0.3s; }
+        .client-card:hover { border-color:#2a2a2a; background:#0e0e0e; }
+        .client-card .cc-name { font-size:10px; color:#bbb; letter-spacing:2px; }
+        .client-card .cc-id { font-size:7px; color:#555; margin-bottom:4px; }
+        .client-card .cc-stat { font-size:7px; color:#666; display:flex; gap:8px; }
+        .inv-bar-wrap { flex:1; height:6px; background:#111; border:1px solid #1a1a1a; }
+        .inv-bar { height:100%; background:#333; }
+        .inv-bar.high { background:#555; }
+        .inv-bar.low { background:var(--amber); }
+
+        .protocol-card { background:#0b0b0b; border:1px solid #161616; padding:20px; margin-bottom:10px; cursor:pointer; transition:0.3s; }
+        .protocol-card:hover { border-color:#2a2a2a; background:#0e0e0e; }
+        .protocol-card .pc-stamp { font-size:8px; color:var(--red); letter-spacing:2px; border:1px solid var(--red); padding:3px 8px; text-transform:uppercase; display:inline-block; margin-right:8px; }
+        .protocol-card .pc-date { font-size:8px; color:#555; letter-spacing:1px; display:inline-block; }
+        .protocol-card .pc-title { font-size:10px; color:#ccc; letter-spacing:2px; text-transform:uppercase; margin-top:6px; }
+        .protocol-card .pc-preview { font-size:8px; color:#666; line-height:1.6; margin-top:4px; }
+
+        .comm-entry { background:#0b0b0b; border:1px solid #161616; padding:14px; margin-bottom:8px; }
+        .comm-entry .comm-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+        .comm-entry .comm-dot.urgent { background:var(--red); box-shadow:0 0 6px rgba(204,0,0,0.4); }
+        .comm-entry .comm-dot.routine { background:#444; }
+        .comm-entry .comm-from { font-size:8px; color:#888; letter-spacing:1.5px; text-transform:uppercase; display:inline-block; }
+        .comm-entry .comm-date { font-size:7px; color:#555; float:right; }
+        .comm-entry .comm-text { font-size:9px; color:#999; line-height:1.6; margin-top:4px; }
+        .comm-entry .comm-response { margin-top:8px; padding:8px 12px; background:#0d0d0d; border-left:2px solid #333; font-size:8px; color:#777; }
+
+        .folder-block { margin-bottom:5px; }
+        .folder-head { padding:8px 12px; background:#0d0d0d; border:1px solid #181818; cursor:pointer; font-size:9px; letter-spacing:2px; color:#888; display:flex; align-items:center; gap:7px; transition:0.2s; text-transform:uppercase; }
+        .folder-head:hover { background:#111; color:#bbb; }
+        .folder-head .arr { transition:0.3s; color:#555; }
+        .folder-block.open .arr { transform:rotate(90deg); }
+        .folder-body { max-height:0; overflow:hidden; transition:max-height 0.35s; }
+        .folder-block.open .folder-body { max-height:320px; overflow-y:auto; }
+        .file-item { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 24px; cursor:pointer; font-size:8px; color:#777; border-bottom:1px solid #0f0f0f; }
+        .file-item:hover { background:#0d0d0d; color:#bbb; }
+        .file-item .fd { width:3px; height:3px; background:#333; border-radius:50%; flex-shrink:0; }
+        .file-item.secret-file { color:#4a3030; }
+        .file-item.secret-file .fd { background:#4a3030; }
+        .upload-zone { border:1px dashed #1a1a1a; padding:14px; text-align:center; cursor:pointer; transition:0.3s; margin-top:8px; color:#444; font-size:8px; letter-spacing:2px; text-transform:uppercase; }
+        .upload-zone:hover { border-color:#333; color:#666; }
+        .upload-zone input { display:none; }
+        .upload-zone.locked { cursor:not-allowed; color:#2a2a2a; border-color:#111; }
+
+        .map-full { position:relative; width:100%; height:420px; background:#040404; border:1px solid #1a1a1a; overflow:hidden; margin-bottom:14px; }
+        .map-full .mf-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size:50px 50px; }
+        .map-point-full { position:absolute; width:14px; height:14px; border-radius:50%; transform:translate(-50%,-50%); cursor:pointer; transition:0.3s; z-index:2; }
+        .map-point-full.warehouse { background:#2a2a2a; border:2px solid #555; }
+        .map-point-full.hq { background:var(--gold); border:2px solid #8a7040; width:20px; height:20px; }
+        .map-point-full.partner { background:#1a3a1a; border:2px solid #3a7a3a; }
+        .map-point-full.rival { background:#3a1010; border:2px solid #7a4040; }
+        .map-label-full { position:absolute; font-size:8px; color:#666; letter-spacing:2px; transform:translate(-50%,12px); pointer-events:none; white-space:nowrap; text-transform:uppercase; }
+        .map-cursor-tip { position:absolute; background:#0a0a0a; border:1px solid #555; padding:8px 14px; font-size:9px; color:#ccc; pointer-events:none; display:none; z-index:20; }
+        .map-info-panel { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .map-info-item { background:#0b0b0b; border:1px solid #161616; padding:12px 14px; display:flex; align-items:flex-start; gap:10px; }
+        .map-info-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:2px; }
+        .map-info-dot.warehouse { background:#2a2a2a; border:2px solid #555; }
+        .map-info-dot.hq { background:var(--gold); border:2px solid #8a7040; }
+        .map-info-dot.partner { background:#1a3a1a; border:2px solid #3a7a3a; }
+        .map-info-dot.rival { background:#3a1010; border:2px solid #7a4040; }
+
+        .log-item { font-size:8px; padding:3px 0; border-bottom:1px solid #0f0f0f; color:#555; }
+        .log-item .lt { color:#333; margin-right:6px; }
+        .log-item.ghost { color:#2a2020; font-style:italic; }
+
+        .adm-block { background:#0b0a06; border:1px solid #1f1808; padding:14px; margin-bottom:8px; }
+        .adm-block h4 { color:var(--gold); font-size:9px; letter-spacing:2px; margin:0 0 7px; text-transform:uppercase; font-weight:400; }
+        .adm-inp,.adm-ta { background:#0a0a0a; border:1px solid #1f1f1f; color:#ccc; padding:6px 9px; font-family:var(--font); font-size:8px; letter-spacing:1px; outline:none; width:100%; margin:2px 0 7px; transition:0.3s; }
+        .adm-inp:focus,.adm-ta:focus { border-color:#4a3820; }
+        .adm-ta { resize:vertical; min-height:50px; }
+        .adm-btn { background:transparent; color:#8a7040; border:1px solid #2a2010; padding:6px 14px; cursor:pointer; font-family:var(--font); font-size:7px; letter-spacing:2px; transition:0.3s; text-transform:uppercase; margin-right:4px; margin-top:2px; }
+        .adm-btn:hover { background:#0f0d08; color:var(--gold); border-color:#4a3820; }
+        .adm-btn.danger { color:#664444; border-color:#2a1010; }
+        .adm-btn.danger:hover { background:#0d0606; color:var(--red); border-color:#4a2020; }
+
+        .dos-photo-select { display:flex; gap:6px; align-items:center; margin-bottom:4px; }
+        .dos-photo-select select { background:#0a0a0a; border:1px solid #1f1f1f; color:#ccc; padding:3px 6px; font-family:var(--font); font-size:7px; outline:none; flex:1; }
+        .dos-photo-select .current { font-size:7px; color:#555; }
+
+        .secret-box { background:#060606; border:1px solid #222; padding:26px; text-align:center; }
+        .secret-box input { background:#0a0a0a; border:1px solid #222; color:#ccc; padding:7px 9px; font-family:var(--font); width:220px; text-align:center; letter-spacing:2px; margin:7px; font-size:10px; outline:none; }
+        .secret-box button { background:transparent; color:#999; border:1px solid #333; padding:7px 20px; cursor:pointer; font-family:var(--font); letter-spacing:2px; transition:0.3s; text-transform:uppercase; font-size:9px; }
+        .secret-box button:hover { background:#111; color:#fff; }
+
+        .popup-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:2000; display:none; justify-content:center; align-items:center; }
+        .popup-overlay.active { display:flex; }
+        .popup-window { background:#0c0c0c; border:1px solid #2a2a2a; width:82vw; max-width:920px; height:82vh; display:flex; flex-direction:column; animation:popIn 0.22s; box-shadow:0 8px 40px rgba(0,0,0,0.8); }
+        @keyframes popIn { from{opacity:0;transform:scale(0.94);} to{opacity:1;transform:scale(1);} }
+        .popup-titlebar { display:flex; align-items:center; height:30px; background:#060606; border-bottom:1px solid #1a1a1a; padding:0 10px; flex-shrink:0; }
+        .popup-titlebar span { flex:1; font-size:8px; letter-spacing:2px; color:#888; text-transform:uppercase; }
+        .popup-close { background:none; border:1px solid #2a2a2a; color:#666; padding:2px 9px; cursor:pointer; font-family:var(--font); font-size:7px; letter-spacing:1px; transition:0.2s; }
+        .popup-close:hover { border-color:var(--red); color:var(--red); }
+        .popup-body { flex:1; overflow-y:auto; padding:16px; }
+
+        .dos-grid { display:grid; grid-template-columns:160px 1fr; gap:12px; }
+        .dos-photos { display:flex; flex-direction:column; gap:4px; }
+        .dos-photos img { width:100%; border:1px solid #1a1a1a; filter:grayscale(100%) contrast(1.1); cursor:pointer; opacity:0.8; transition:0.3s; }
+        .dos-photos img:hover { opacity:1; border-color:#444; }
+        .dos-main-img { grid-column:1/-1; border:1px solid #1a1a1a; overflow:hidden; max-height:160px; margin-top:4px; }
+        .dos-main-img img { width:100%; display:block; filter:grayscale(100%) contrast(1.1); cursor:pointer; opacity:0.9; }
+        .combat-stat { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+        .combat-stat .cs-label { font-size:8px; color:#555; letter-spacing:1px; text-transform:uppercase; width:80px; flex-shrink:0; }
+        .combat-stat .cs-bar-wrap { flex:1; height:6px; background:#111; border:1px solid #1a1a1a; }
+        .combat-stat .cs-bar { height:100%; background:#333; }
+        .combat-stat .cs-bar.high { background:#555; }
+
+        .file-view { display:flex; justify-content:center; align-items:center; min-height:140px; }
+        .file-view img,.file-view video { max-width:100%; max-height:60vh; object-fit:contain; }
+        .file-view iframe { width:100%; height:60vh; border:none; }
+        .file-view audio { width:50%; min-width:240px; }
+        .fs-img { position:fixed; inset:0; background:rgba(0,0,0,0.97); z-index:5000; display:none; justify-content:center; align-items:center; cursor:pointer; }
+        .fs-img.active { display:flex; }
+        .fs-img img { max-width:95vw; max-height:95vh; object-fit:contain; filter:grayscale(0%)!important; opacity:1!important; }
+
+        .password-dialog { background:#0a0a0a; border:1px solid #222; padding:20px; text-align:center; }
+        .password-dialog input { background:#060606; border:1px solid #1f1f1f; color:#ccc; padding:7px 10px; font-family:var(--font); font-size:10px; letter-spacing:2px; outline:none; width:200px; text-align:center; margin:8px; }
+        .password-dialog button { background:transparent; color:#999; border:1px solid #333; padding:7px 18px; cursor:pointer; font-family:var(--font); letter-spacing:2px; text-transform:uppercase; font-size:9px; transition:0.3s; }
+        .password-dialog button:hover { background:#111; color:#fff; }
+        .password-dialog .pw-error { color:var(--red); font-size:8px; min-height:12px; }
+
+        .export-btn { background:transparent; color:#555; border:1px solid #1a1a1a; padding:4px 10px; cursor:pointer; font-family:var(--font); font-size:7px; letter-spacing:2px; transition:0.3s; text-transform:uppercase; float:right; margin-bottom:8px; }
+        .export-btn:hover { color:#bbb; border-color:#444; }
+
+        @media (max-width:768px) {
+            #main-os { grid-template-columns:1fr; }
+            .sidebar { display:none; }
+            .popup-window { width:95vw; height:88vh; }
+            .dos-grid { grid-template-columns:1fr; }
+            .dash-grid { grid-template-columns:1fr; }
+            .warehouse-gallery { grid-template-columns:repeat(2,1fr); }
+            .map-info-panel { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="transition-overlay"><div class="scan-line"></div><div class="loading-text">Инициализация системы</div></div>
+
+    <!-- ЭКРАН ВХОДА — ИСПРАВЛЕН -->
+    <div id="login-screen">
+        <div class="logo-container">
+            <img src="https://i.postimg.cc/13qJGbmj/Bez-nazvania2-20260413151522.png" alt="CERBER LOGO" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div style="display:none; width:90px; height:90px; border-radius:50%; border:1px solid #2a2a2a; background:#0a0a0a; margin:0 auto 16px; line-height:90px; font-size:28px; letter-spacing:6px; color:#666;">CER</div>
+            <h1>CERBER OS</h1><p>Dataset Cerber</p>
+        </div>
+        <div class="input-group">
+            <div class="input-field"><input type="text" id="login-username" placeholder=" " autocomplete="off"><label>Идентификатор</label></div>
+            <div class="input-field"><input type="password" id="login-password" placeholder=" "><label>Пароль</label></div>
+            <button onclick="handleLogin()">Авторизация</button><p class="error-msg" id="login-error"></p>
+        </div>
+        <div class="status-line"><span class="dot"></span><span>Сервер активен — соединение защищено</span></div>
+    </div>
+
+    <div id="main-os">
+        <div class="header">
+            <img src="https://i.postimg.cc/13qJGbmj/Bez-nazvania2-20260413151522.png" alt="" onerror="this.style.display='none';">
+            <span class="sys-name">Dataset Cerber</span>
+            <div class="search-wrap"><input type="text" id="search-input" placeholder="Поиск..." oninput="handleSearch(this.value)" onfocus="this.select()"><div class="search-results" id="search-results"></div></div>
+            <span class="sys-sub" id="current-user-display"></span>
+            <span class="admin-badge" id="admin-badge">ADMIN</span>
+            <button class="logout-btn" onclick="logout()">Выход</button>
+        </div>
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-section">Навигация</div>
+            <button class="nav-btn active" data-tab="dashboard"><span class="nav-key">1</span> Обзор</button>
+            <button class="nav-btn" data-tab="dossiers"><span class="nav-key">2</span> Досье</button>
+            <button class="nav-btn" data-tab="warehouses"><span class="nav-key">3</span> Склады</button>
+            <button class="nav-btn" data-tab="deals"><span class="nav-key">4</span> Сделки</button>
+            <button class="nav-btn" data-tab="clients"><span class="nav-key">5</span> Клиенты</button>
+            <button class="nav-btn" data-tab="files"><span class="nav-key">6</span> Файлы</button>
+            <button class="nav-btn" data-tab="calendar"><span class="nav-key">7</span> Календарь</button>
+            <button class="nav-btn" data-tab="map"><span class="nav-key">8</span> Карта</button>
+            <button class="nav-btn" data-tab="comms">Журнал связи</button>
+            <button class="nav-btn" data-tab="protocols">Протоколы</button>
+            <button class="nav-btn" data-tab="logs">Логи</button>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section">Секретно</div>
+            <button class="nav-btn" id="nav-classified" data-tab="classified">Операция Закат</button>
+            <div class="sidebar-divider"></div>
+            <button class="nav-btn admin-nav" id="admin-nav-btn" data-tab="admin">Управление</button>
+        </div>
+
+        <div class="main-content" id="main-content"></div>
+
+        <div class="status-bar">
+            <span class="live-dot"></span><span>Cerber OS v3.2</span><span>|</span>
+            <span id="status-time"></span><span>|</span><span>Файлов: <span id="files-opened-count">0</span></span>
+        </div>
+    </div>
+
+    <div class="popup-overlay" id="popup-overlay">
+        <div class="popup-window" id="popup-window">
+            <div class="popup-titlebar"><span id="popup-title">Окно</span><button class="popup-close" onclick="closePopup()">Закрыть</button></div>
+            <div class="popup-body" id="popup-body"></div>
+        </div>
+    </div>
+    <div class="fs-img" id="fs-img" onclick="this.classList.remove('active')"><img id="fs-img-src" src="" alt=""></div>
+
+    <script>
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+        function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+        function beep(f, d, t = 'sine', v = 0.03) { if (!audioCtx) return; const o = audioCtx.createOscillator(),
+                g = audioCtx.createGain();
+            o.type = t;
+            o.frequency.setValueAtTime(f, audioCtx.currentTime);
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+            o.connect(g);
+            g.connect(audioCtx.destination);
+            o.start();
+            o.stop(audioCtx.currentTime + d); }
+        function sndLogin() { beep(220, 0.15, 'sine', 0.04);
+            setTimeout(() => beep(330, 0.2, 'sine', 0.03), 150);
+            setTimeout(() => beep(440, 0.3, 'sine', 0.04), 300); }
+        function sndClick() { beep(800, 0.05, 'square', 0.02); }
+        function sndOpen() { beep(600, 0.08, 'sine', 0.03);
+            setTimeout(() => beep(900, 0.1, 'sine', 0.02), 80); }
+        function sndSecret() { beep(200, 0.2, 'sine', 0.03);
+            setTimeout(() => beep(300, 0.2, 'sine', 0.03), 200);
+            setTimeout(() => beep(400, 0.3, 'sine', 0.04), 400); }
+
+        const STORAGE_KEY = 'cerber_os_data';
+        function getDefaultData() {
+            return {
+                warehouses: [
+                    { id: 1, st: 'active', cont: 'Автоматы, патроны', aud: '01.05.2026', resp: 'Эйс Блэквуд', inv: 'AK-47: 45 ед., M4A1: 30 ед.', x: 45, y: 25, cap: 100, cur: 75, img: svgi('СКЛАД #1') },
+                    { id: 2, st: 'active', cont: 'Пистолеты, глушители', aud: '28.04.2026', resp: 'Маршалл Кинн', inv: 'Glock-17: 60 ед.', x: 30, y: 50, cap: 80, cur: 60, img: svgi('СКЛАД #2') },
+                    { id: 3, st: 'active', cont: 'Винтовки, оптика', aud: '03.05.2026', resp: 'Нокс Вестерн', inv: 'Снайперские: 20 ед.', x: 70, y: 30, cap: 40, cur: 20, img: svgi('СКЛАД #3') },
+                    { id: 4, st: 'warning', cont: 'Гранаты, взрывчатка', aud: '20.04.2026', resp: 'Эйс Блэквуд', inv: 'Гранаты: 200 ед.', x: 55, y: 55, cap: 300, cur: 250, img: svgi('СКЛАД #4') },
+                    { id: 5, st: 'active', cont: 'Ножи, снаряжение', aud: '05.05.2026', resp: 'Маршалл Кинн', inv: 'Ножи: 80 ед.', x: 65, y: 70, cap: 100, cur: 80, img: svgi('СКЛАД #5') },
+                    { id: 6, st: 'active', cont: 'Бронежилеты', aud: '02.05.2026', resp: 'Эйс Блэквуд', inv: 'Бронежилеты: 55 шт.', x: 40, y: 80, cap: 60, cur: 55, img: svgi('СКЛАД #6') },
+                    { id: 7, st: 'inactive', cont: 'Коллекция', aud: '10.01.2026', resp: 'Нокс Вестерн', inv: 'Раритеты: 12 ед.', x: 85, y: 15, cap: 20, cur: 12, img: svgi('СКЛАД #7') }
+                ],
+                deals: [
+                    { date: '04.05.2026', client: '███████', item: 'AK-47 ×15', amt: '$45,000', st: 'completed' },
+                    { date: '02.05.2026', client: '███████', item: 'Glock-17 ×30', amt: '$18,000', st: 'completed' },
+                    { date: '30.04.2026', client: 'Большая Мама', item: 'Охрана (мес.)', amt: '$25,000', st: 'pending' }
+                ],
+                clients: [
+                    { id: '2841', name: '███████', trust: 'high', deals: 12, lastDeal: '04.05.2026', notes: 'Постоянный покупатель.' },
+                    { id: '2798', name: '███████', trust: 'medium', deals: 5, lastDeal: '02.05.2026', notes: 'Новый клиент.' },
+                    { id: 'БМ-01', name: 'Большая Мама', trust: 'high', deals: 24, lastDeal: '30.04.2026', notes: 'Охрана ежемесячно.' }
+                ],
+                activity: [
+                    { time: '12:34', text: 'Сделка #2841 — AK-47 ×15' }, { time: '11:20', text: 'Инвентаризация склада #3' }
+                ],
+                timeline: [
+                    { date: '2026-05-15', text: 'Инвентаризация', tag: 'План', type: 'upcoming' },
+                    { date: '2026-05-04', text: 'Сделка #2841', tag: 'Сделка', type: 'past' }
+                ],
+                protocols: [
+                    { id: 'prot-001', date: '03.05.2026', title: 'Допрос задержанного', stamp: 'КОНФИДЕНЦИАЛЬНО', preview: 'Допрос проведён в присутствии Маршалла Кинна.', full: 'ПРОТОКОЛ ДОПРОСА\nДата: 03.05.2026\nПрисутствовали: Маршалл Кинн, Эйс Блэквуд\n\nХОД ДОПРОСА:\nЗадержанный подтвердил связь с конкурирующей организацией.' },
+                    { id: 'prot-002', date: '28.04.2026', title: 'Собрание руководства', stamp: 'ВНУТРЕННИЙ', preview: 'Обсуждались результаты реформации.', full: 'ПРОТОКОЛ СОБРАНИЯ\nДата: 28.04.2026\nПрисутствовали: Маршалл Кинн, Эйс Блэквуд, Нокс Вестерн\n\nРЕШЕНИЯ:\nУсилить охрану борделя «Большая Мама».' },
+                    { id: 'prot-003', date: '15.04.2026', title: 'Операция «Чистый горизонт»', stamp: 'СЕКРЕТНО', preview: 'Отчёт о зачистке склада конкурента.', full: 'ПРОТОКОЛ ОПЕРАЦИИ\nДата: 15.04.2026\nРуководитель: Эйс Блэквуд\n\nСТАТУС:\nЗавершено. Трофеи на складе #1.' }
+                ],
+                comms: [
+                    { from: 'Цесанна', date: '04.05.2026', text: 'Подтверждаю оплату за май.', response: 'Принято.', urgent: false },
+                    { from: 'Цесанна', date: '28.04.2026', text: 'Был инцидент. Требуется усиление.', response: 'Выделены люди.', urgent: true }
+                ],
+                notes: { marshall: 'Преемник Дэйва. Руководил «Закатом».', ace: '«Пёс на цепи». Охрана «Большая Мама».', knox: 'Агрессивные кибератаки.' },
+                combat: { marshall: { style: 'Тактик-стратег', weapon: 'M4A1 Custom', sec: 'Glock-17', acc: 85, agg: 45, def: 78, stl: 60, exp: 'Спецназ' }, ace: { style: 'Штурмовик', weapon: 'AK-47', sec: 'Desert Eagle', acc: 70, agg: 92, def: 55, stl: 30, exp: 'ЧВК' }, knox: { style: 'Скрытный', weapon: 'MP5-SD', sec: 'USP .45', acc: 78, agg: 35, def: 42, stl: 95, exp: 'Кибервойска' } },
+                dossierImgs: { marshall: [svgi('МАРШАЛЛ КИНН'), svgi('СТРЕЛЬБИЩЕ'), svgi('ЗАЛ ЗАСЕДАНИЙ')], ace: [svgi('ЭЙС БЛЭКВУД'), svgi('СКЛАД #1'), svgi('НОЖИ')], knox: [svgi('НОКС ВЕСТЕРН'), svgi('СЕРВЕРНАЯ'), svgi('СКЛАД #7')] },
+                mapPoints: [
+                    { x: 45, y: 25, type: 'warehouse', label: 'Склад #1', desc: 'Автоматы. Эйс Блэквуд.' },
+                    { x: 30, y: 50, type: 'warehouse', label: 'Склад #2', desc: 'Пистолеты. Маршалл Кинн.' },
+                    { x: 55, y: 55, type: 'warehouse', label: 'Склад #4', desc: 'Взрывчатка. Проверка.' },
+                    { x: 20, y: 70, type: 'hq', label: 'Штаб', desc: 'Центр. Все три лидера.' },
+                    { x: 80, y: 40, type: 'partner', label: 'Большая Мама', desc: 'Бордель. Охрана.' },
+                    { x: 90, y: 75, type: 'rival', label: 'Конкурент', desc: 'Наблюдение.' }
+                ],
+                adminNotes: '',
+                secretDocs: [
+                    { name: 'Договор_Бордель_Большая_Мама.pdf', desc: 'Охранные услуги. Оплата, зоны.', size: 245000 },
+                    { name: 'Отчёт_Операция_Закат_Полный.pdf', desc: 'Списки казнённых, имена шпионов.', size: 560000 }
+                ]
+            };
+        }
+        function svgi(t) { return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="#111" width="300" height="200"/><text x="150" y="100" text-anchor="middle" fill="#444" font-family="monospace" font-size="13">${t}</text></svg>`); }
+
+        function loadData() { try { const s = localStorage.getItem(STORAGE_KEY); if (s) { const p = JSON.parse(s);
+                    const d = getDefaultData(); for (const k of Object.keys(d)) { if (!(k in p)) p[k] = d[k]; } return p; } } catch (e) {} return getDefaultData(); }
+        function saveData() { try { const ts = { warehouses: sys.warehouses, deals: sys.deals, clients: sys.clients, activity: sys.activity, timeline: sys.timeline, notes: sys.notes, combat: sys.combat, dossierImgs: sys.dossierImgs, adminNotes: sys.adminNotes, mapPoints: sys.mapPoints };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(ts)); } catch (e) {} }
+
+        let sys = loadData();
+        let currentUser = null,
+            isAdmin = false,
+            filesOpenedCount = 0,
+            uploadedFiles = [],
+            classifiedUnlocked = false,
+            secretUnlocked = false;
+
+        const CREDS = { 'admin': { pw: 'cerberus2020', lvl: 5, disp: 'Администратор' }, 'marshall': { pw: 'kinn2020', lvl: 4, disp: 'Маршалл Кинн' }, 'ace': { pw: 'blackwood', lvl: 4, disp: 'Эйс Блэквуд' }, 'knox': { pw: 'western', lvl: 4, disp: 'Нокс Вестерн' } };
+        const SECRET_PW = 'eclipse2020',
+            SECRET_FILES_PW = 'cerberus-classified';
+
+        function handleLogin() {
+            const u = document.getElementById('login-username').value.trim().toLowerCase(),
+                p = document.getElementById('login-password').value.trim(),
+                err = document.getElementById('login-error');
+            if (!u || !p) { err.textContent = 'Заполните все поля'; return; }
+            const c = CREDS[u];
+            if (c && c.pw === p) {
+                initAudio();
+                currentUser = u;
+                isAdmin = (c.lvl === 5);
+                if (isAdmin) document.body.classList.add('admin-theme');
+                err.textContent = '';
+                const ov = document.getElementById('transition-overlay');
+                ov.classList.add('active');
+                ov.querySelector('.loading-text').textContent = isAdmin ? 'Инициализация — АДМИНИСТРАТОР' : 'Инициализация — ' + c.disp;
+                setTimeout(() => {
+                    document.getElementById('login-screen').classList.add('hidden');
+                }, 200);
+                setTimeout(() => {
+                    document.getElementById('main-os').style.display = 'grid';
+                    document.getElementById('main-os').classList.add('visible');
+                    applyPerms();
+                    switchTab('dashboard');
+                    updClock();
+                    setInterval(updClock, 30000);
+                    sndLogin();
+                }, 500);
+                setTimeout(() => {
+                    ov.classList.remove('active');
+                }, 800);
+                xlog('Вход: ' + c.disp + (isAdmin ? ' [АДМИН]' : ''));
+            } else { err.textContent = 'Неверные учётные данные';
+                xlog('Отклонён: ' + u); }
+        }
+
+        function applyPerms() { document.getElementById('admin-badge').style.display = isAdmin ? 'inline' : 'none';
+            document.getElementById('admin-nav-btn').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('current-user-display').textContent = 'Пользователь: ' + (CREDS[currentUser]?.disp || currentUser).toUpperCase(); const nc = document.getElementById('nav-classified'); if (!isAdmin && nc) { nc.classList.add('leader-locked');
+                nc.innerHTML = 'Операция Закат <span class="nav-lock-icon">[lock]</span>'; } if (isAdmin && nc) { nc.classList.remove('leader-locked');
+                nc.textContent = 'Операция Закат'; } }
+
+        function logout() { saveData();
+            xlog('Выход: ' + (CREDS[currentUser]?.disp || currentUser));
+            uploadedFiles.forEach(f => URL.revokeObjectURL(f.url));
+            uploadedFiles = [];
+            secretUnlocked = false;
+            classifiedUnlocked = false;
+            currentUser = null;
+            isAdmin = false;
+            document.body.classList.remove('admin-theme');
+            document.getElementById('main-os').classList.remove('visible');
+            document.getElementById('main-os').style.display = 'none';
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').textContent = ''; }
+
+        function xlog(action) { if (!window._logs) window._logs = []; const t = new Date().toTimeString().split(' ')[0];
+            window._logs.unshift({ time: t, action }); if (window._logs.length > 100) window._logs.pop(); if (Math.random() < 0.03) window._logs.unshift({ time: t, action: 'Системное событие #' + Math.floor(Math.random() * 9000 + 1000), ghost: true }); }
+        function updClock() { document.getElementById('status-time').textContent = new Date().toLocaleString(); }
+        function handleSearch(q) { const res = document.getElementById('search-results'); if (!q || q.length < 2) { res.classList.remove('show'); return; } const ql = q.toLowerCase(),
+                results = [];
+            sys.warehouses.forEach(w => { if (('склад ' + w.id + ' ' + w.cont).toLowerCase().includes(ql)) results.push({ t: 'Склад #' + w.id, tab: 'warehouses' }); });
+            sys.deals.forEach(d => { if ((d.client + ' ' + d.item).toLowerCase().includes(ql)) results.push({ t: 'Сделка: ' + d.item, tab: 'deals' }); });
+            sys.protocols.forEach(p => { if ((p.title + ' ' + p.preview).toLowerCase().includes(ql)) results.push({ t: 'Протокол: ' + p.title, tab: 'protocols' }); });
+            res.innerHTML = results.length === 0 ? '<div class="sr-item">Ничего не найдено</div>' : results.slice(0, 8).map(r => `<div class="sr-item" onclick="switchTab('${r.tab}'); document.getElementById('search-results').classList.remove('show');">${r.t}</div>`).join('');
+            res.classList.add('show'); }
+        document.addEventListener('click', function(e) { if (!e.target.closest('.search-wrap')) document.getElementById('search-results').classList.remove('show'); });
+
+        function switchTab(name) { if (name === 'admin' && !isAdmin) return;
+            sndClick();
+            document.querySelectorAll('#sidebar .nav-btn').forEach(b => b.classList.remove('active')); const btn = document.querySelector(`[data-tab="${name}"]`); if (btn) btn.classList.add('active'); const mc = document.getElementById('main-content');
+            mc.innerHTML = ''; const pn = document.createElement('div');
+            pn.className = 'tab-panel active';
+            pn.id = 'panel-' + name;
+            mc.appendChild(pn); switch (name) { case 'dashboard': dash(pn); break;
+                case 'dossiers': doss(pn); break;
+                case 'warehouses': wh(pn); break;
+                case 'deals': dl(pn); break;
+                case 'clients': clientsTab(pn); break;
+                case 'files': fls(pn); break;
+                case 'calendar': cal(pn); break;
+                case 'map': mapTab(pn); break;
+                case 'comms': commsTab(pn); break;
+                case 'protocols': protocolsTab(pn); break;
+                case 'logs': lgs(pn); break;
+                case 'classified': cls(pn); break;
+                case 'admin': if (isAdmin) adm(pn); else pn.innerHTML = '<p style="color:var(--red);">Доступ запрещён.</p>'; break; }
+            xlog('Раздел: ' + name); }
+        document.querySelectorAll('#sidebar .nav-btn').forEach(b => { b.addEventListener('click', function() { switchTab(this.dataset.tab); }); });
+
+        // ===== ОТРИСОВКА ВКЛАДОК =====
+        function dash(el) {
+            const activeWH = sys.warehouses.filter(w => w.st === 'active').length;
+            el.innerHTML = `
+                <div class="dash-hero"><img src="https://i.postimg.cc/13qJGbmj/Bez-nazvania2-20260413151522.png" alt="" onerror="this.style.display='none';"><div class="dash-hero-text"><h2>CERBER OS</h2><div class="dh-version">Версия 3.2 · Dataset Cerber</div><div class="dh-desc">Закрытая база данных организации «Цербер» · Все действия логируются</div></div></div>
+                <div class="dash-status-line"><span class="pulse"></span><span>Система активна</span></div>
+                <div class="dash-grid">
+                    <div class="dash-card" onclick="switchTab('dossiers')"><div class="dc-num">3</div><div class="dc-lbl">Лидера</div></div>
+                    <div class="dash-card" onclick="switchTab('warehouses')"><div class="dc-num">${activeWH} / 7</div><div class="dc-lbl">Складов активно</div></div>
+                    <div class="dash-card" onclick="switchTab('deals')"><div class="dc-num">${sys.deals.length}</div><div class="dc-lbl">Сделок</div></div>
+                    <div class="dash-card" onclick="switchTab('protocols')"><div class="dc-num">${sys.protocols.length}</div><div class="dc-lbl">Протоколов</div></div>
+                </div>
+                <h3 style="color:#ccc;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:400;margin-bottom:8px;">Фотографии складов</h3>
+                <div class="warehouse-gallery">${sys.warehouses.map(w => `<div class="wh-gallery-item" onclick="switchTab('warehouses')"><img src="${w.img}" alt="Склад #${w.id}" onerror="this.parentElement.querySelector('.wh-label').textContent='Склад #${w.id}'"><div class="wh-label">Склад #${w.id} · ${w.cont}</div></div>`).join('')}</div>
+                <div class="dash-mini-map" id="dash-mini-map"><div class="mm-grid"></div><div class="mm-cursor-tip" id="mm-cursor-tip"></div></div>`;
+            setTimeout(() => drawMiniMap(), 100);
+        }
+
+        function drawMiniMap() { const container = document.getElementById('dash-mini-map'),
+                tip = document.getElementById('mm-cursor-tip'); if (!container) return; const points = [{ x: 20, y: 70, type: 'hq', label: 'Штаб', desc: 'Центр управления' }, ...sys.warehouses.map(w => ({ x: w.x, y: w.y, type: 'warehouse', label: 'Склад #' + w.id, desc: w.cont })), { x: 80, y: 40, type: 'partner', label: 'Большая Мама', desc: 'Бордель' }, { x: 90, y: 75, type: 'rival', label: 'Конкурент', desc: 'Наблюдение' }];
+            points.forEach(p => { const dot = document.createElement('div');
+                dot.className = 'mm-dot ' + p.type;
+                dot.style.left = p.x + '%';
+                dot.style.top = p.y + '%';
+                dot.addEventListener('mousemove', (e) => { const rect = container.getBoundingClientRect();
+                    tip.innerHTML = `<strong>${p.label}</strong><br><span style="color:#888;">${p.desc}</span>`;
+                    tip.style.display = 'block';
+                    tip.style.left = (e.clientX - rect.left + 14) + 'px';
+                    tip.style.top = (e.clientY - rect.top - 12) + 'px'; });
+                dot.addEventListener('mouseleave', () => tip.style.display = 'none');
+                dot.addEventListener('click', () => switchTab('map'));
+                container.appendChild(dot); }); }
+
+        function doss(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;font-weight:400;">Личные дела</h3><p style="color:#555;font-size:7px;margin-bottom:10px;">Боевой профиль в отдельном окне</p><button class="dossier-btn" onclick="openDos('marshall')">CER-001 — Маршалл Кинн</button><button class="dossier-btn" onclick="openDos('ace')">CER-002 — Эйс Блэквуд</button><button class="dossier-btn" onclick="openDos('knox')">CER-003 — Нокс Вестерн</button>`; }
+
+        function protocolsTab(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase;font-weight:400;">Протоколы</h3><p style="color:#555;font-size:7px;margin-bottom:10px;">Внутренние документы · Нажмите для просмотра</p>${sys.protocols.map(p => `<div class="protocol-card" onclick="openProtocol('${p.id}')"><div class="pc-header"><span class="pc-stamp">${p.stamp}</span><span class="pc-date">${p.date}</span></div><div class="pc-title">${p.title}</div><div class="pc-preview">${p.preview}</div></div>`).join('')}`; }
+
+        function openProtocol(id) { const p = sys.protocols.find(x => x.id === id); if (!p) return;
+            document.getElementById('popup-title').textContent = 'Протокол — ' + p.title;
+            document.getElementById('popup-body').innerHTML = `<div class="card"><h3>${p.title}</h3><p style="color:var(--red);font-size:7px;letter-spacing:2px;margin-bottom:6px;">${p.stamp}</p><p><span class="lbl">Дата:</span> <span class="val">${p.date}</span></p><pre style="color:#999;font-size:9px;line-height:1.8;white-space:pre-wrap;font-family:var(--font);margin-top:10px;">${p.full}</pre></div>`;
+            document.getElementById('popup-overlay').classList.add('active');
+            sndOpen(); }
+
+        function cal(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase;font-weight:400;">Календарь операций</h3><div class="timeline">${sys.timeline.map(t => `<div class="tl-item ${t.type}"><span class="tl-date">${t.date}</span><span class="tl-text">${t.text}<span class="tl-tag">${t.tag}</span></span></div>`).join('')}</div>`; }
+        function commsTab(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase;font-weight:400;">Журнал коммуникаций</h3>${sys.comms.map(c => `<div class="comm-entry"><div class="comm-header"><span class="comm-dot ${c.urgent?'urgent':'routine'}"></span><span class="comm-from">${c.from}</span><span class="comm-date">${c.date}</span></div><div class="comm-text">${c.text}</div><div class="comm-response">Ответ: ${c.response}</div></div>`).join('')}`; }
+
+        function clientsTab(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase;font-weight:400;">Профили клиентов</h3>${sys.clients.map(c => `<div class="client-card" onclick="openClientDetail('${c.id}')"><div class="cc-name">${c.name}</div><div class="cc-id">ID: ${c.id} · Сделок: ${c.deals}</div></div>`).join('')}`; }
+        function openClientDetail(id) { const c = sys.clients.find(x => x.id === id); if (!c) return;
+            document.getElementById('popup-title').textContent = 'Клиент — ' + c.name;
+            document.getElementById('popup-body').innerHTML = `<div class="card"><h3>${c.name}</h3><p><span class="lbl">Заметки:</span> <span class="val">${c.notes||'—'}</span></p></div>`;
+            document.getElementById('popup-overlay').classList.add('active');
+            sndOpen(); }
+
+        function wh(el) { const sm = { active: 's-active', warning: 's-warn', inactive: 's-off' },
+                lm = { active: 'Активен', warning: 'Проверка', inactive: 'Закрыт' };
+            el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;font-weight:400;">Инвентаризация</h3><button class="export-btn" onclick="exportTbl('warehouses')">Экспорт</button><table><thead><tr><th>Объект</th><th>Статус</th><th>Загрузка</th></tr></thead><tbody>${sys.warehouses.map(w => { const pct = Math.round((w.cur/w.cap)*100), bc = pct>90?'high':pct<30?'low':''; return `<tr onclick="openWH(${w.id})"><td>Склад #${w.id}</td><td><span class="status-dot ${sm[w.st]}"></span>${lm[w.st]}</td><td><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:7px;color:#555;">${w.cur}/${w.cap}</span><div class="inv-bar-wrap"><div class="inv-bar ${bc}" style="width:${pct}%;"></div></div></div></td></tr>`}).join('')}</tbody></table>`; }
+        function dl(el) { const sm = { completed: 'Завершено', pending: 'Ожидает', cancelled: 'Отменено' },
+                cm = { completed: 'var(--green)', pending: 'var(--amber)', cancelled: 'var(--red)' };
+            el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;font-weight:400;">Журнал сделок</h3><button class="export-btn" onclick="exportTbl('deals')">Экспорт</button><table><thead><tr><th>Дата</th><th>Клиент</th><th>Товар</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>${sys.deals.map((d,i) => `<tr onclick="openDL(${i})"><td>${d.date}</td><td>${d.client}</td><td>${d.item}</td><td>${d.amt}</td><td style="color:${cm[d.st]||'#999'};">${sm[d.st]||d.st}</td></tr>`).join('')}</tbody></table>`; }
+
+        function fls(el) { const uh = isAdmin ? `<div class="upload-zone" onclick="document.getElementById('file-input').click()">Загрузить файлы<input type="file" id="file-input" multiple accept="audio/*,video/*,image/*,.pdf" onchange="handleFiles(event)"></div>` : `<div class="upload-zone locked">Загрузка — только администратор</div>`;
+            el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;font-weight:400;">Файловая система</h3><div class="folder-block" id="fb-im"><div class="folder-head" onclick="this.parentElement.classList.toggle('open')"><span class="arr">></span> Изображения <span style="margin-left:auto;font-size:7px;color:#444;" id="cnt-im">0</span></div><div class="folder-body" id="fc-im"></div></div><div class="folder-block" id="fb-vid"><div class="folder-head" onclick="this.parentElement.classList.toggle('open')"><span class="arr">></span> Видео <span style="margin-left:auto;font-size:7px;color:#444;" id="cnt-vid">0</span></div><div class="folder-body" id="fc-vid"></div></div><div class="folder-block" id="fb-aud"><div class="folder-head" onclick="this.parentElement.classList.toggle('open')"><span class="arr">></span> Аудио <span style="margin-left:auto;font-size:7px;color:#444;" id="cnt-aud">0</span></div><div class="folder-body" id="fc-aud"></div></div><div class="folder-block" id="fb-pdf"><div class="folder-head" onclick="this.parentElement.classList.toggle('open')"><span class="arr">></span> Документы <span style="margin-left:auto;font-size:7px;color:#444;" id="cnt-pdf">0</span></div><div class="folder-body" id="fc-pdf"></div></div><div class="folder-block" id="fb-sec"><div class="folder-head" onclick="openSecretFolder()"><span class="arr">></span> Засекреченные файлы <span style="margin-left:auto;font-size:7px;color:#4a3030;">🔒</span></div><div class="folder-body" id="fc-sec"></div></div>${uh}`; if (secretUnlocked) showSecretFiles(); }
+
+        function mapTab(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase;font-weight:400;">Карта влияния</h3><div class="map-full" id="map-container"><div class="mf-grid"></div><div class="map-cursor-tip" id="map-cursor-tip"></div></div><div class="map-info-panel" id="map-info-panel"></div>`;
+            setTimeout(() => { drawFullMap();
+                drawMapInfo(); }, 100); }
+
+        function drawFullMap() { const container = document.getElementById('map-container'),
+                tip = document.getElementById('map-cursor-tip'); if (!container) return;
+            sys.mapPoints.forEach(p => { const point = document.createElement('div');
+                point.className = 'map-point-full ' + p.type;
+                point.style.left = p.x + '%';
+                point.style.top = p.y + '%';
+                point.addEventListener('mousemove', (e) => { const rect = container.getBoundingClientRect();
+                    tip.innerHTML = `<strong>${p.label}</strong><br>${p.desc}`;
+                    tip.style.display = 'block';
+                    tip.style.left = (e.clientX - rect.left + 20) + 'px';
+                    tip.style.top = (e.clientY - rect.top - 50) + 'px'; });
+                point.addEventListener('mouseleave', () => tip.style.display = 'none');
+                container.appendChild(point); const label = document.createElement('div');
+                label.className = 'map-label-full';
+                label.textContent = p.label;
+                label.style.left = p.x + '%';
+                label.style.top = p.y + '%';
+                container.appendChild(label); }); }
+        function drawMapInfo() { const panel = document.getElementById('map-info-panel'); if (!panel) return; const tn = { hq: 'Штаб', warehouse: 'Склады', partner: 'Партнёры', rival: 'Конкуренты' },
+                groups = {};
+            sys.mapPoints.forEach(p => { if (!groups[p.type]) groups[p.type] = [];
+                groups[p.type].push(p); });
+            panel.innerHTML = Object.keys(groups).map(type => `<div class="map-info-item"><span class="map-info-dot ${type}"></span><div class="map-info-text"><div class="mit-name">${tn[type]||type} (${groups[type].length})</div></div></div>`).join(''); }
+
+        function lgs(el) { const logs = window._logs || [];
+            el.innerHTML = '<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;font-weight:400;">Системный журнал</h3>' + logs.map(l => `<div class="log-item${l.ghost?' ghost':''}"><span class="lt">[${l.time}]</span>${l.action}</div>`).join(''); }
+        function cls(el) { el.innerHTML = `<h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;font-weight:400;">Засекречено</h3><div class="secret-box" id="secret-locked"><p style="color:var(--red);letter-spacing:2px;font-size:11px;">ДОСТУП ЗАКРЫТ</p><p style="color:#444;margin:8px 0;font-size:8px;">Пароль для операции «Закат»</p><input type="password" id="secret-pw" placeholder="Пароль"><button onclick="unlockClassified()">Разблокировать</button></div><div id="secret-content" style="display:none;"><div class="card"><h3>Операция «Закат»</h3><p><span class="lbl">Дата:</span> <span class="val">5 ноября 2020</span></p></div></div>`; if (classifiedUnlocked || isAdmin) { document.getElementById('secret-locked').style.display = 'none';
+                document.getElementById('secret-content').style.display = 'block'; } }
+        function unlockClassified() { if (document.getElementById('secret-pw')?.value.trim() === SECRET_PW) { classifiedUnlocked = true;
+                document.getElementById('secret-locked').style.display = 'none';
+                document.getElementById('secret-content').style.display = 'block';
+                document.getElementById('nav-classified').classList.remove('leader-locked');
+                document.getElementById('nav-classified').textContent = 'Операция Закат';
+                sndSecret(); } }
+
+        // ===== АДМИН-ПАНЕЛЬ =====
+        function adm(el) {
+            const imgOptions = uploadedFiles.filter(f => f.cat === 'image').map(f => `<option value="${f.url}">${f.name}</option>`).join('');
+            const personIds = ['marshall', 'ace', 'knox'];
+            const personNames = { marshall: 'Маршалл Кинн', ace: 'Эйс Блэквуд', knox: 'Нокс Вестерн' };
+            let dossierSection = '';
+            personIds.forEach(id => {
+                const cp = sys.combat[id] || {};
+                const imgs = sys.dossierImgs[id] || [svgi(id.toUpperCase())];
+                dossierSection += `
+                <div style="margin-bottom:8px;padding:8px;background:#0a0a0a;border:1px solid #151515;">
+                    <p style="font-size:9px;color:var(--gold);letter-spacing:2px;margin-bottom:6px;">${personNames[id]}</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+                        <div>
+                            <p style="font-size:7px;color:#8a7040;margin:2px 0;">Стиль:</p><input class="adm-inp" id="adm-style-${id}" value="${cp.style||''}" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;margin:2px 0;">Оружие:</p><input class="adm-inp" id="adm-weapon-${id}" value="${cp.weapon||''}" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;margin:2px 0;">Доп. оружие:</p><input class="adm-inp" id="adm-sec-${id}" value="${cp.sec||''}" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;margin:2px 0;">Опыт:</p><input class="adm-inp" id="adm-exp-${id}" value="${cp.exp||''}" style="margin:0;padding:3px 6px;">
+                        </div>
+                        <div>
+                            <p style="font-size:7px;color:#8a7040;">Меткость:</p><input class="adm-inp" id="adm-acc-${id}" value="${cp.acc||0}" type="number" min="0" max="100" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;">Агрессия:</p><input class="adm-inp" id="adm-agg-${id}" value="${cp.agg||0}" type="number" min="0" max="100" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;">Защита:</p><input class="adm-inp" id="adm-def-${id}" value="${cp.def||0}" type="number" min="0" max="100" style="margin:0 0 4px;padding:3px 6px;">
+                            <p style="font-size:7px;color:#8a7040;">Скрытность:</p><input class="adm-inp" id="adm-stl-${id}" value="${cp.stl||0}" type="number" min="0" max="100" style="margin:0;padding:3px 6px;">
+                        </div>
+                    </div>
+                    <p style="font-size:7px;color:#8a7040;margin:6px 0 2px;">Фото (3 изображения):</p>
+                    ${[0,1,2].map(i => `<div class="dos-photo-select"><span style="font-size:7px;color:#555;min-width:40px;">Фото ${i+1}:</span><select id="adm-dimg-${id}-${i}"><option value="${imgs[i]||''}">Текущее</option>${imgOptions}</select></div>`).join('')}
+                </div>`;
+            });
+
+            el.innerHTML = `<h3 style="color:var(--gold);font-size:11px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;font-weight:400;">Управление</h3>
+                <div class="adm-block"><h4>Склады — статус и фото</h4>${sys.warehouses.map((w,i) => `<div style="margin-bottom:6px;padding:6px;background:#0a0a0a;border:1px solid #151515;">
+                    <p style="font-size:8px;margin-bottom:4px;">Склад #${w.id}: <select class="adm-inp" style="width:auto;display:inline;margin:0 4px;padding:3px 5px;" id="aws-${i}"><option value="active" ${w.st==='active'?'selected':''}>Активен</option><option value="warning" ${w.st==='warning'?'selected':''}>Проверка</option><option value="inactive" ${w.st==='inactive'?'selected':''}>Закрыт</option></select> Загрузка: <input class="adm-inp" style="width:60px;display:inline;padding:3px 5px;text-align:center;" id="awc-${i}" value="${w.cur}" type="number">/${w.cap}</p>
+                    <div class="wh-photo-upload"><span style="font-size:7px;color:#555;">Фото:</span><select id="awp-${i}" style="background:#0a0a0a;border:1px solid #1f1f1f;color:#ccc;padding:3px 6px;font-family:var(--font);font-size:7px;outline:none;flex:1;"><option value="${w.img}">Текущее</option>${imgOptions}</select></div>
+                </div>`).join('')}<button class="adm-btn" onclick="admWH()">Сохранить склады</button></div>
+                <div class="adm-block"><h4>Досье — боевой профиль и фото</h4>${dossierSection}<button class="adm-btn" onclick="admDossiers()">Сохранить досье</button></div>
+                <div class="adm-block"><h4>Сделки</h4>${sys.deals.map((d,i) => `<div style="margin-bottom:3px;padding:3px;background:#0a0a0a;font-size:7px;">${d.date} | ${d.client}<br><select class="adm-inp" style="width:auto;display:inline;padding:2px 5px;margin:2px 0;" id="ads-${i}"><option value="completed" ${d.st==='completed'?'selected':''}>Завершено</option><option value="pending" ${d.st==='pending'?'selected':''}>Ожидает</option><option value="cancelled" ${d.st==='cancelled'?'selected':''}>Отменено</option></select> <button class="adm-btn danger" style="font-size:6px;padding:1px 6px;" onclick="admDelDL(${i})">×</button></div>`).join('')}<button class="adm-btn" onclick="admDL()">Сохранить</button><button class="adm-btn" onclick="admAddDL()">+ Сделка</button></div>
+                <div class="adm-block"><h4>Заметки администратора</h4><textarea class="adm-ta" id="adm-notes" rows="3">${sys.adminNotes||''}</textarea><button class="adm-btn" onclick="admSaveNotes()">Сохранить</button></div>`;
+        }
+
+        function admWH() { sys.warehouses.forEach((w, i) => { const s = document.getElementById('aws-' + i); if (s) w.st = s.value; const c = document.getElementById('awc-' + i); if (c) w.cur = Math.min(parseInt(c.value) || 0, w.cap); const p = document.getElementById('awp-' + i); if (p && p.value) w.img = p.value; });
+            saveData();
+            switchTab('admin');
+            switchTab('warehouses');
+            switchTab('dashboard');
+            xlog('Склады обновлены'); }
+
+        function admDossiers() {
+            ['marshall', 'ace', 'knox'].forEach(id => {
+                const cp = sys.combat[id] || {};
+                cp.style = document.getElementById('adm-style-' + id)?.value || cp.style;
+                cp.weapon = document.getElementById('adm-weapon-' + id)?.value || cp.weapon;
+                cp.sec = document.getElementById('adm-sec-' + id)?.value || cp.sec;
+                cp.exp = document.getElementById('adm-exp-' + id)?.value || cp.exp;
+                cp.acc = parseInt(document.getElementById('adm-acc-' + id)?.value) || cp.acc;
+                cp.agg = parseInt(document.getElementById('adm-agg-' + id)?.value) || cp.agg;
+                cp.def = parseInt(document.getElementById('adm-def-' + id)?.value) || cp.def;
+                cp.stl = parseInt(document.getElementById('adm-stl-' + id)?.value) || cp.stl;
+                sys.combat[id] = cp;
+                const imgs = [];
+                for (let i = 0; i < 3; i++) { const sel = document.getElementById('adm-dimg-' + id + '-' + i);
+                    imgs.push(sel?.value || (sys.dossierImgs[id]?.[i] || svgi(id.toUpperCase()))); }
+                sys.dossierImgs[id] = imgs;
+            });
+            saveData();
+            switchTab('admin');
+            xlog('Досье обновлены'); }
+
+        function admDL() { sys.deals.forEach((d, i) => { const s = document.getElementById('ads-' + i); if (s) d.st = s.value; });
+            saveData();
+            switchTab('admin');
+            switchTab('deals'); }
+        function admDelDL(i) { sys.deals.splice(i, 1);
+            saveData();
+            switchTab('admin');
+            switchTab('deals'); }
+        function admAddDL() { sys.deals.push({ date: new Date().toLocaleDateString('ru-RU'), client: 'НОВЫЙ', item: 'Товар', amt: '$0', st: 'pending' });
+            saveData();
+            switchTab('admin');
+            switchTab('deals'); }
+        function admSaveNotes() { sys.adminNotes = document.getElementById('adm-notes')?.value || '';
+            saveData(); }
+
+        function openWH(id) { const w = sys.warehouses.find(x => x.id === id); if (!w) return; const sm = { active: 's-active', warning: 's-warn', inactive: 's-off' },
+                lm = { active: 'Активен', warning: 'Проверка', inactive: 'Закрыт' };
+            document.getElementById('popup-title').textContent = 'Склад #' + w.id;
+            document.getElementById('popup-body').innerHTML = `<div class="card"><h3>Информация</h3><p><span class="lbl">Статус:</span> <span class="val"><span class="status-dot ${sm[w.st]}"></span>${lm[w.st]}</span></p><p><span class="lbl">Загрузка:</span> <span class="val">${w.cur}/${w.cap}</span></p><img src="${w.img}" style="width:100%;margin-top:10px;border:1px solid #1a1a1a;filter:grayscale(100%) contrast(1.1);" onerror="this.style.display='none'"></div>`;
+            document.getElementById('popup-overlay').classList.add('active');
+            sndOpen(); }
+        function openDL(i) { const d = sys.deals[i]; if (!d) return;
+            document.getElementById('popup-title').textContent = 'Сделка — ' + d.item;
+            document.getElementById('popup-body').innerHTML = `<div class="card"><h3>Детали</h3><p><span class="lbl">Клиент:</span> <span class="val">${d.client}</span></p><p><span class="lbl">Сумма:</span> <span class="val">${d.amt}</span></p></div>`;
+            document.getElementById('popup-overlay').classList.add('active');
+            sndOpen(); }
+
+        function exportTbl(type) { let d = type === 'warehouses' ? 'Объект,Статус,Загрузка\n' + sys.warehouses.map(w => `Склад #${w.id},${w.st},${w.cur}/${w.cap}`).join('\n') : 'Дата,Клиент,Товар,Сумма,Статус\n' + sys.deals.map(d => `${d.date},${d.client},${d.item},${d.amt},${d.st}`).join('\n'); const w = window.open('', '_blank', 'width=600,height=400');
+            w.document.write('<pre style="background:#000;color:#ccc;padding:20px;font-family:monospace;">' + d + '</pre>');
+            w.document.close(); }
+
+        function handleFiles(e) { if (!isAdmin) return; const files = e.target.files; if (!files.length) return; const map = { 'image': 'im', 'video': 'vid', 'audio': 'aud', 'application/pdf': 'pdf' }; for (const f of files) { const cat = Object.keys(map).find(k => f.type.startsWith(k)); if (!cat) continue; const fk = map[cat],
+                    url = URL.createObjectURL(f);
+                uploadedFiles.push({ name: f.name, type: f.type, size: f.size, url, cat }); const fc = document.getElementById('fc-' + fk); if (!fc) continue; const row = document.createElement('div');
+                row.className = 'file-item';
+                row.innerHTML = `<span class="fd"></span><span>${f.name}</span>`;
+                row.addEventListener('click', () => openFileWin(url, f.name, f.type));
+                fc.appendChild(row); const fb = document.getElementById('fb-' + fk); if (fb && !fb.classList.contains('open')) fb.classList.add('open');
+                document.getElementById('cnt-' + fk).textContent = fc.children.length;
+                xlog('Файл загружен: ' + f.name); }
+            document.getElementById('file-input').value = ''; if (document.getElementById('panel-admin')?.classList.contains('active')) switchTab('admin'); }
+
+        function openSecretFolder() { if (secretUnlocked) { document.getElementById('fb-sec').classList.toggle('open'); return; }
+            document.getElementById('popup-title').textContent = 'Засекреченные файлы';
+            document.getElementById('popup-body').innerHTML = `<div class="password-dialog"><p style="color:#888;font-size:9px;">Пароль доступа</p><input type="password" id="secret-files-pw" placeholder="Пароль"><button onclick="unlockSecret()">Разблокировать</button><p class="pw-error" id="secret-files-err"></p></div>`;
+            document.getElementById('popup-overlay').classList.add('active'); }
+        function unlockSecret() { if (document.getElementById('secret-files-pw')?.value.trim() === SECRET_FILES_PW) { secretUnlocked = true;
+                closePopup();
+                showSecretFiles();
+                document.getElementById('fb-sec').classList.add('open');
+                sndSecret(); } else { document.getElementById('secret-files-err').textContent = 'Неверный пароль'; } }
+        function showSecretFiles() { const fc = document.getElementById('fc-sec'); if (!fc) return; const docs = sys.secretDocs || getDefaultData().secretDocs;
+            fc.innerHTML = docs.map(d => `<div class="file-item secret-file" onclick="openSecretDoc('${d.name.replace(/'/g, "\\'")}')"><span class="fd"></span><span>${d.name}</span></div>`).join(''); }
+        function openSecretDoc(name) { const docs = sys.secretDocs || getDefaultData().secretDocs; const doc = docs.find(d => d.name === name); if (!doc) return;
+            filesOpenedCount++;
+            document.getElementById('files-opened-count').textContent = filesOpenedCount;
+            sndOpen();
+            document.getElementById('popup-title').textContent = doc.name;
+            document.getElementById('popup-body').innerHTML = `<div class="card"><h3>${doc.name}</h3><p style="color:var(--red);font-size:8px;">ГРИФ: СЕКРЕТНО</p><p><span class="lbl">Описание:</span> <span class="val">${doc.desc}</span></p></div>`;
+            document.getElementById('popup-overlay').classList.add('active'); }
+
+        function openDos(id) {
+            const data = { marshall: { title: 'Маршалл Кинн', cid: 'CER-001', role: 'Руководитель / Стратег', appt: 'Ноябрь 2020', st: 'Активен', clr: '5' }, ace: { title: 'Эйс Блэквуд', cid: 'CER-002', role: 'Силовик / Охрана', appt: 'Ноябрь 2020', st: 'Активен', clr: '4' }, knox: { title: 'Нокс Вестерн', cid: 'CER-003', role: 'Кибероперации', appt: 'Ноябрь 2020', st: 'Активен', clr: '4' } } [id];
+            if (!data) return;
+            const notes = sys.notes[id] || '',
+                cp = sys.combat[id] || {},
+                imgs = sys.dossierImgs[id] || [svgi(id.toUpperCase()), svgi('ФОТО 2'), svgi('ФОТО 3')],
+                bc = v => v > 80 ? 'high' : '';
+            const bars = ['acc', 'agg', 'def', 'stl'].map(s => { const v = cp[s] || 0; const lbs = { acc: 'Меткость', agg: 'Агрессия', def: 'Защита', stl: 'Скрытность' }; return `<div class="combat-stat"><span class="cs-label">${lbs[s]}</span><div class="cs-bar-wrap"><div class="cs-bar ${bc(v)}" style="width:${v}%;"></div></div><span style="font-size:7px;color:#666;">${v}%</span></div>`; }).join('');
+            document.getElementById('popup-title').textContent = 'Досье — ' + data.title;
+            document.getElementById('popup-body').innerHTML = `<div class="dos-grid"><div class="dos-photos">${imgs.map(s => `<img src="${s}" onclick="openFS(this.src)" onerror="this.style.display='none'">`).join('')}</div><div><h3 style="color:#ccc;font-size:11px;letter-spacing:2px;margin-bottom:8px;">${data.cid}</h3><p><span class="lbl">Роль:</span> <span class="val">${data.role}</span></p><p style="margin-top:8px;"><span class="lbl">Заметки:</span> <span class="val">${notes}</span></p></div></div><div class="card" style="margin-top:10px;"><h3>Боевой профиль</h3><p><span class="lbl">Стиль:</span> <span class="val">${cp.style||'—'}</span></p><p><span class="lbl">Оружие:</span> <span class="val">${cp.weapon||'—'} / ${cp.sec||'—'}</span></p><p><span class="lbl">Опыт:</span> <span class="val">${cp.exp||'—'}</span></p><div style="margin-top:10px;">${bars}</div></div><div class="dos-main-img"><img src="${imgs[0]}" onclick="openFS(this.src)" onerror="this.style.display='none'"></div>`;
+            document.getElementById('popup-overlay').classList.add('active');
+            sndOpen();
+        }
+
+        function openFileWin(url, name, type) { filesOpenedCount++;
+            document.getElementById('files-opened-count').textContent = filesOpenedCount;
+            sndOpen();
+            document.getElementById('popup-title').textContent = name; const body = document.getElementById('popup-body');
+            body.innerHTML = '<div class="file-view"></div>'; const fv = body.querySelector('.file-view'); if (type.startsWith('image/')) { const img = document.createElement('img');
+                img.src = url;
+                img.style.cursor = 'pointer';
+                img.onclick = () => openFS(url);
+                fv.appendChild(img); } else if (type.startsWith('video/')) { const v = document.createElement('video');
+                v.src = url;
+                v.controls = true;
+                v.autoplay = true;
+                fv.appendChild(v); } else if (type.startsWith('audio/')) { const w = document.createElement('div');
+                w.style.cssText = 'text-align:center;'; const l = document.createElement('p');
+                l.textContent = name;
+                l.style.cssText = 'color:#999;font-size:10px;'; const a = document.createElement('audio');
+                a.src = url;
+                a.controls = true;
+                a.autoplay = true;
+                a.style.width = '340px';
+                w.appendChild(l);
+                w.appendChild(a);
+                fv.appendChild(w); } else if (type === 'application/pdf') { const ifr = document.createElement('iframe');
+                ifr.src = url;
+                fv.appendChild(ifr); }
+            document.getElementById('popup-overlay').classList.add('active'); }
+
+        function closePopup() { document.getElementById('popup-body').querySelectorAll('video, audio').forEach(el => { el.pause();
+                el.currentTime = 0; });
+            document.getElementById('popup-overlay').classList.remove('active'); }
+        document.getElementById('popup-overlay').addEventListener('click', function(e) { if (e.target === this) closePopup(); });
+        function openFS(src) { document.getElementById('fs-img-src').src = src;
+            document.getElementById('fs-img').classList.add('active'); }
+
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { if (document.getElementById('popup-overlay').classList.contains('active')) closePopup(); if (document.getElementById('fs-img').classList.contains('active')) document.getElementById('fs-img').classList.remove('active'); } if (e.ctrlKey && e.key === 'l') { e.preventDefault();
+                logout(); } if (!e.ctrlKey && !e.altKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { const tm = { '1': 'dashboard', '2': 'dossiers', '3': 'warehouses', '4': 'deals', '5': 'clients', '6': 'files', '7': 'calendar', '8': 'map' }; if (tm[e.key]) { e.preventDefault();
+                    switchTab(tm[e.key]); } } });
+
+        xlog('Система загружена');
+        window._logs = window._logs || [];
+    </script>
+</body>
+</html>
